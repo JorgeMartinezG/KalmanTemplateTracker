@@ -110,7 +110,7 @@ def create_object_dict(img, obj_bbox):
 def main():
     # Read input options.
     #options = parse_options()
-    cap = cv2.VideoCapture('gupta/c01.avi')
+    cap = cv2.VideoCapture('gupta/c50.avi')
     track_sw = False
 
     # Create detector.
@@ -153,9 +153,17 @@ def main():
             top_left = top_left[0] + min_x, top_left[1] + min_y
             bottom_right = (top_left[0] + width, top_left[1] + height)
             cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), 2)
+            
+            # Create new template.
+            out_bbox = list(top_left)
+            out_bbox.extend(pred_bbox[2:].tolist())
+            obj = update_params(obj, out_bbox[0], out_bbox[1])
 
-            # Partially update template.
-
+            # Partially Update template img.
+            img_tpl = get_obj_patch(img, out_bbox) 
+            new_tpl = obj['tpl'] * 0.7 + img_tpl * 0.3
+            obj.update(dict(tpl=new_tpl.astype('uint8')))
+            draw_rectangle(img, out_bbox)
 
         # We trust completely in the detector.
         if len_objs != 0:
