@@ -123,7 +123,7 @@ def main():
         objs = detect_objects(classifier, img)
         len_objs = len(objs)
 
-        #TODO: Check template match here.
+        # Waiting for detections.
         if len_objs == 0 and not track_sw:
             cv2.imshow('Video', img); cv2.waitKey(25)
             continue
@@ -150,12 +150,11 @@ def main():
             _, _, _, top_left = cv2.minMaxLoc(res)
 
             # Add the top left position from the search patch.
-
             top_left = top_left[0] + min_x, top_left[1] + min_y
             bottom_right = (top_left[0] + width, top_left[1] + height)
             cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), 2)
 
-
+        # We trust completely in the detector.
         if len_objs != 0:
             full_update = True
             # TODO: Check if bounding box distance to prediction is below th.
