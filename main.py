@@ -32,7 +32,7 @@ def draw_rectangle(img_frame, coords):
 def main():
     # Read input options.
     #options = parse_options()
-    video_capture = cv2.VideoCapture('Gupta_dataset/c43.avi')
+    video_capture = cv2.VideoCapture('gupta/c43.avi')
 
     # Create Haar-cascade classifier
     classifier_path = 'Classifiers/haarcascade_frontalface_alt.xml'
