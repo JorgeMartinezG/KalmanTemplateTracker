@@ -154,6 +154,9 @@ def main():
             bottom_right = (top_left[0] + width, top_left[1] + height)
             cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), 2)
 
+            # Partially update template.
+
+
         # We trust completely in the detector.
         if len_objs != 0:
             full_update = True
@@ -164,12 +167,12 @@ def main():
             estimates = obj.get('estimates')
             bbox = [estimates[0, 0], estimates[1,0]]
             bbox.extend(pred_bbox[2:].tolist())
+            bbox = [int(coord) for coord in bbox]
 
-            # Update template img.
-            img_tpl = get_obj_patch(img, out_bbox) 
+            # Fully Update template img.
+            img_tpl = get_obj_patch(img, bbox) 
             obj.update(dict(tpl=img_tpl))
 
-            bbox = [int(coord) for coord in bbox]
             draw_rectangle(img, bbox)
 
         cv2.imshow('video', img)
