@@ -1,10 +1,8 @@
 import cv2
 import cv2.cv as cv
+import math
 import optparse
 import os
-
-#def create_cap():
-#def get_or_create_helpers(face_coords, img_frame)
 
 
 def update_params(obj, img, out_bbox, full_tpl):
@@ -29,7 +27,7 @@ def update_params(obj, img, out_bbox, full_tpl):
 
     obj.update(dict(kalman=kalman,
                     measurement=measurement,
-                    estimates=estimates,
+                    #estimates=estimates,
                     tpl=img_tpl))
 
     return obj, correct_bbox
@@ -46,8 +44,8 @@ def kalman_create():
 
     # set Kalman Filter
     cv.SetIdentity(kalman.measurement_matrix, cv.RealScalar(1))
-    cv.SetIdentity(kalman.process_noise_cov, cv.RealScalar(1e-5))
-    cv.SetIdentity(kalman.measurement_noise_cov, cv.RealScalar(1e-1))
+    cv.SetIdentity(kalman.process_noise_cov, cv.RealScalar(1e-6))
+    cv.SetIdentity(kalman.measurement_noise_cov, cv.RealScalar(1e-2))
     cv.SetIdentity(kalman.error_cov_post, cv.RealScalar(0.1))
 
     return kalman 
@@ -57,20 +55,24 @@ def detect_objects(classifier, img_frame):
     coords = classifier.detectMultiScale(
         img_frame,
         scaleFactor=1.1,
-        minNeighbors=5,
+        minNeighbors=3,
         minSize=(30, 30),
         flags=cv2.cv.CV_HAAR_SCALE_IMAGE
     )
     return coords
 
 
-def draw_rectangle(img_frame, coords):
+def draw_rectangle(img_frame, coords, color):
+    color_tuple = (0, 255, 0)
+    if color == 'red':
+        color_tuple = (0, 0, 255)
+
     x_point, y_point, width, height = coords
     cv2.rectangle(
         img_frame,
         (x_point, y_point),
         (x_point + width, y_point + height),
-        (0, 255, 0),
+        color_tuple,
         2
     )
 
@@ -127,6 +129,24 @@ def create_pred_bbox(obj, prediction):
     return [prediction[0, 0], prediction[1, 0], width, height]
 
 
+def l2_norm(point_1, point_2):
+    return math.sqrt((point_2[1] - point_1[1])**2 + 
+                     (point_2[0] - point_1[0])**2)
+
+
+def get_closest_obj(pred_bbox, objs):
+    # Compute distance wrt prediction bounding box.
+    distances = [l2_norm(obj.tolist(), pred_bbox) for obj in objs]
+
+    # If the smallest distance is higher than 50 pixels, return None and
+    # template match.
+    if min(distances) > 50:
+        return None
+
+    # Find obj with smallest distance.
+    return objs[distances.index(min(distances))]
+
+
 def main():
     # Read input options.
     options = parse_options()
@@ -134,8 +154,9 @@ def main():
     track_sw = False
 
     # Create detector.
-    classifier_path = 'Classifiers/haarcascade_frontalface_alt.xml'
-    classifier = cv2.CascadeClassifier(classifier_path)
+    folder = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(folder, 'Classifiers', 'haarcascade_frontalface_alt.xml')
+    classifier = cv2.CascadeClassifier(path)
 
     while cap.isOpened():
         # Retreive video frame from capture and status
@@ -164,18 +185,20 @@ def main():
         # In the detector we trust. 
         if len_objs != 0:
             full_tpl = True
-            # TODO: Check if bounding box distance to prediction is below th.
-            out_bbox = objs[0].tolist()
+            # Find detection whose distance to prediction is the smallest.
+            out_bbox = get_closest_obj(pred_bbox, objs)
 
         # Detector did not find anything...run template match.
-        if len_objs == 0:
+        if len_objs == 0 or out_bbox is None:
             full_tpl = False
             out_bbox = run_template_match(img, pred_bbox, obj)
 
         # Update Kalman and get bbox.
         obj, bbox = update_params(obj, img, out_bbox, full_tpl)
 
-        draw_rectangle(img, bbox)
+        draw_rectangle(img, bbox, 'green')
+        if options.detections:
+            [draw_rectangle(img, det, 'red') for det in objs]
 
         cv2.imshow('video', img)
         if cv2.waitKey(25) & 0xFF == ord('q'):
@@ -187,6 +210,11 @@ def parse_options():
     parser.add_option('-p',
                       '--path',
                       dest='path')
+    parser.add_option('-d',
+                      '--det',
+                      dest='detections',
+                      action='store_true',
+                      default=False)
     options, _ = parser.parse_args()
 
     return options
@@ -217,7 +245,7 @@ def run_template_match(img, pred_bbox, obj):
 def get_template(obj, img, bbox, full):
     img_tpl = get_obj_patch(img, bbox) 
     if not full:
-        img_tpl = (obj['tpl'] * 0.7 + img_tpl * 0.3).astype('uint8')
+        img_tpl = (obj['tpl'] * 0.9 + img_tpl * 0.1).astype('uint8')
 
     return img_tpl
 
