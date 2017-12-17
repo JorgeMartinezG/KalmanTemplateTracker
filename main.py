@@ -116,6 +116,13 @@ def create_object_dict(img, obj_bbox):
     return obj
 
 
+def create_pred_bbox(obj, prediction):
+    # Get template width and height.
+    height, width, _ = obj.get('tpl').shape
+
+    return [prediction[0, 0], prediction[1, 0], width, height]
+
+
 def main():
     # Read input options.
     #options = parse_options()
@@ -144,20 +151,22 @@ def main():
             track_sw = True
             continue
 
-        # Create kalman prediction.
+        # Create kalman prediction bounding box.
         prediction = cv.KalmanPredict(obj.get('kalman'))
-        pred_bbox[:2] = prediction[0, 0], prediction[1, 0]
+
+        # Create prediction bounfing box based on template shape.
+        pred_bbox = create_pred_bbox(obj, prediction)
+
+        # In the detector we trust. 
+        if len_objs != 0:
+            full_update = True
+            # TODO: Check if bounding box distance to prediction is below th.
+            out_bbox = objs[0].tolist()
 
         # Detector did not find anything...run template match.
         if len_objs == 0:
             full_update = False
             out_bbox = run_template_match(img, pred_bbox, obj)
-
-        # We trust completely in the detector.
-        if len_objs != 0:
-            full_update = True
-            # TODO: Check if bounding box distance to prediction is below th.
-            out_bbox = objs[0].tolist()
 
         # Update Kalman.
         obj = update_params(obj, out_bbox[0], out_bbox[1])
