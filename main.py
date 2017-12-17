@@ -7,7 +7,8 @@ import os
 #def get_or_create_helpers(face_coords, img_frame)
 
 
-def update_params(obj, x_point, y_point):
+def update_params(obj, img, out_bbox, full_tpl):
+    x_point, y_point = out_bbox[0], out_bbox[1]
     kalman, measurement = obj['kalman'], obj['measurement']
 
     measurement[0, 0] = x_point
@@ -20,9 +21,13 @@ def update_params(obj, x_point, y_point):
 
     estimates = cv.KalmanCorrect(kalman, measurement)
 
+    # Update template.
+    img_tpl = get_template(obj, img, out_bbox, full_tpl)
+
     obj.update(dict(kalman=kalman,
                     measurement=measurement,
-                    estimates=estimates))
+                    estimates=estimates,
+                    tpl=img_tpl))
 
     return obj 
 
@@ -104,14 +109,11 @@ def create_object_dict(img, obj_bbox):
     # Create measurement matrix.
     measurement = cv.CreateMat(2, 1, cv.CV_32FC1)
 
-    # Create image template patch.
-    obj_patch = get_obj_patch(img, obj_bbox)
-
     # Create object dictionary.
-    obj = dict(kalman=kalman, measurement=measurement, tpl=obj_patch)
+    obj = dict(kalman=kalman, measurement=measurement)
 
     # Update kalman params.
-    obj = update_params(obj, x_point, y_point)
+    obj = update_params(obj, img, obj_bbox, full_tpl=True)
 
     return obj
 
@@ -169,11 +171,8 @@ def main():
             out_bbox = run_template_match(img, pred_bbox, obj)
 
         # Update Kalman.
-        obj = update_params(obj, out_bbox[0], out_bbox[1])
+        obj = update_params(obj, img, out_bbox, full_update)
         bbox = create_out_bbox(obj, out_bbox)
-
-        # Update template image.
-        obj = update_template(obj, img, bbox, full=full_update)
 
         draw_rectangle(img, bbox)
 
@@ -211,14 +210,12 @@ def run_template_match(img, pred_bbox, obj):
     return out_bbox
 
 
-def update_template(obj, img, bbox, full):
+def get_template(obj, img, bbox, full):
     img_tpl = get_obj_patch(img, bbox) 
     if not full:
         img_tpl = (obj['tpl'] * 0.7 + img_tpl * 0.3).astype('uint8')
 
-    obj.update(dict(tpl=img_tpl))
-
-    return obj
+    return img_tpl
 
 
 if __name__ == '__main__':
