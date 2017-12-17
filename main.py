@@ -161,17 +161,17 @@ def main():
 
         # In the detector we trust. 
         if len_objs != 0:
-            full_update = True
+            full_tpl = True
             # TODO: Check if bounding box distance to prediction is below th.
             out_bbox = objs[0].tolist()
 
         # Detector did not find anything...run template match.
         if len_objs == 0:
-            full_update = False
+            full_tpl = False
             out_bbox = run_template_match(img, pred_bbox, obj)
 
         # Update Kalman.
-        obj = update_params(obj, img, out_bbox, full_update)
+        obj = update_params(obj, img, out_bbox, full_tpl)
         bbox = create_out_bbox(obj, out_bbox)
 
         draw_rectangle(img, bbox)
