@@ -139,7 +139,7 @@ def main():
 
         # Initialize Kalman filter.
         elif len_objs != 0 and not track_sw:
-            pred_bbox = objs[0]
+            pred_bbox = objs[0].tolist()
             obj = create_object_dict(img, pred_bbox)
             track_sw = True
             continue
@@ -181,20 +181,21 @@ def parse_options():
 
 
 def run_template_match(img, pred_bbox, obj):
+    # Create search neighborhood around kalman prediction.
     search_patch, min_x, min_y = create_search_patch(img, pred_bbox)
+
+    # Get previously saved template.
     template = obj.get('tpl')
     height, width, _ = template.shape
 
-    # Run template match.
+    # Run template match around search neighborhood.
     res = cv2.matchTemplate(search_patch, template, cv2.TM_CCOEFF)
     _, _, _, top_left = cv2.minMaxLoc(res)
 
     # Add the top left position from the search patch.
     top_left = top_left[0] + min_x, top_left[1] + min_y
-    bottom_right = (top_left[0] + width, top_left[1] + height)
-    # cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), 2)
     
-    # Create new template.
+    # Create object bounding box.
     out_bbox = list(top_left)
     out_bbox.extend([width, height])
 
