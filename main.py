@@ -80,10 +80,19 @@ def create_search_patch(img, obj_bbox, search_size=50):
     return roi, roi_min_x, roi_min_y 
 
 
+def create_out_bbox(obj, out_bbox):
+    estimates = obj.get('estimates')
+    bbox = [estimates[0, 0], estimates[1,0]]
+    bbox.extend(out_bbox[2:])
+    bbox = [int(coord) for coord in bbox]
+
+    return bbox
+
+
 def get_obj_patch(img, obj_bbox):
     x_point, y_point, width, height = obj_bbox
-    return img[y_point: y_point + height + 1,
-               x_point: x_point + width + 1]
+    return img[y_point: y_point + height,
+               x_point: x_point + width]
 
 
 def create_object_dict(img, obj_bbox):
@@ -114,7 +123,7 @@ def main():
     track_sw = False
 
     # Create detector.
-    classifier_path = 'classifiers/haarcascade_frontalface_alt.xml'
+    classifier_path = 'Classifiers/haarcascade_frontalface_alt.xml'
     classifier = cv2.CascadeClassifier(classifier_path)
 
     while cap.isOpened():
@@ -135,53 +144,29 @@ def main():
             track_sw = True
             continue
 
+        # Create kalman prediction.
         prediction = cv.KalmanPredict(obj.get('kalman'))
         pred_bbox[:2] = prediction[0, 0], prediction[1, 0]
-        bbox = pred_bbox.copy()
 
+        # Detector did not find anything...run template match.
         if len_objs == 0:
-            # Create neighborhood around kalman prediction. 
-            search_patch, min_x, min_y = create_search_patch(img, pred_bbox)
-            template = obj.get('tpl')
-            height, width, _ = template.shape
-
-            # Run template match.
-            res = cv2.matchTemplate(search_patch, template, cv2.TM_CCOEFF)
-            _, _, _, top_left = cv2.minMaxLoc(res)
-
-            # Add the top left position from the search patch.
-            top_left = top_left[0] + min_x, top_left[1] + min_y
-            bottom_right = (top_left[0] + width, top_left[1] + height)
-            cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), 2)
-            
-            # Create new template.
-            out_bbox = list(top_left)
-            out_bbox.extend(pred_bbox[2:].tolist())
-            obj = update_params(obj, out_bbox[0], out_bbox[1])
-
-            # Partially Update template img.
-            img_tpl = get_obj_patch(img, out_bbox) 
-            new_tpl = obj['tpl'] * 0.7 + img_tpl * 0.3
-            obj.update(dict(tpl=new_tpl.astype('uint8')))
-            draw_rectangle(img, out_bbox)
+            full_update = False
+            out_bbox = run_template_match(img, pred_bbox, obj)
 
         # We trust completely in the detector.
         if len_objs != 0:
             full_update = True
             # TODO: Check if bounding box distance to prediction is below th.
-            out_bbox = objs[0]
-            obj = update_params(obj, out_bbox[0], out_bbox[1])
+            out_bbox = objs[0].tolist()
 
-            estimates = obj.get('estimates')
-            bbox = [estimates[0, 0], estimates[1,0]]
-            bbox.extend(pred_bbox[2:].tolist())
-            bbox = [int(coord) for coord in bbox]
+        # Update Kalman.
+        obj = update_params(obj, out_bbox[0], out_bbox[1])
+        bbox = create_out_bbox(obj, out_bbox)
 
-            # Fully Update template img.
-            img_tpl = get_obj_patch(img, bbox) 
-            obj.update(dict(tpl=img_tpl))
+        # Update template image.
+        obj = update_template(obj, img, bbox, full=full_update)
 
-            draw_rectangle(img, bbox)
+        draw_rectangle(img, bbox)
 
         cv2.imshow('video', img)
         if cv2.waitKey(25) & 0xFF == ord('q'):
@@ -193,6 +178,37 @@ def parse_options():
     parser.add_option('-p',
                       '--path',
                       dest='path')
+
+
+def run_template_match(img, pred_bbox, obj):
+    search_patch, min_x, min_y = create_search_patch(img, pred_bbox)
+    template = obj.get('tpl')
+    height, width, _ = template.shape
+
+    # Run template match.
+    res = cv2.matchTemplate(search_patch, template, cv2.TM_CCOEFF)
+    _, _, _, top_left = cv2.minMaxLoc(res)
+
+    # Add the top left position from the search patch.
+    top_left = top_left[0] + min_x, top_left[1] + min_y
+    bottom_right = (top_left[0] + width, top_left[1] + height)
+    # cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), 2)
+    
+    # Create new template.
+    out_bbox = list(top_left)
+    out_bbox.extend([width, height])
+
+    return out_bbox
+
+
+def update_template(obj, img, bbox, full):
+    img_tpl = get_obj_patch(img, bbox) 
+    if not full:
+        img_tpl = (obj['tpl'] * 0.7 + img_tpl * 0.3).astype('uint8')
+
+    obj.update(dict(tpl=img_tpl))
+
+    return obj
 
 
 if __name__ == '__main__':
