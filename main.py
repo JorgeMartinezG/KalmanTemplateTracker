@@ -129,8 +129,8 @@ def create_pred_bbox(obj, prediction):
 
 def main():
     # Read input options.
-    #options = parse_options()
-    cap = cv2.VideoCapture('gupta/c50.avi')
+    options = parse_options()
+    cap = cv2.VideoCapture(options.path)
     track_sw = False
 
     # Create detector.
@@ -187,6 +187,9 @@ def parse_options():
     parser.add_option('-p',
                       '--path',
                       dest='path')
+    options, _ = parser.parse_args()
+
+    return options
 
 
 def run_template_match(img, pred_bbox, obj):
