@@ -24,12 +24,15 @@ def update_params(obj, img, out_bbox, full_tpl):
     # Update template.
     img_tpl = get_template(obj, img, out_bbox, full_tpl)
 
+    # Create kalman corrected bounding box.
+    correct_bbox = create_correct_bbox(estimates, out_bbox)
+
     obj.update(dict(kalman=kalman,
                     measurement=measurement,
                     estimates=estimates,
                     tpl=img_tpl))
 
-    return obj 
+    return obj, correct_bbox
 
 
 def kalman_create():
@@ -85,8 +88,7 @@ def create_search_patch(img, obj_bbox, search_size=50):
     return roi, roi_min_x, roi_min_y 
 
 
-def create_out_bbox(obj, out_bbox):
-    estimates = obj.get('estimates')
+def create_correct_bbox(estimates, out_bbox):
     bbox = [estimates[0, 0], estimates[1,0]]
     bbox.extend(out_bbox[2:])
     bbox = [int(coord) for coord in bbox]
@@ -149,7 +151,7 @@ def main():
         # Initialize Kalman filter.
         elif len_objs != 0 and not track_sw:
             pred_bbox = objs[0].tolist()
-            obj = create_object_dict(img, pred_bbox)
+            obj, _ = create_object_dict(img, pred_bbox)
             track_sw = True
             continue
 
@@ -170,9 +172,8 @@ def main():
             full_tpl = False
             out_bbox = run_template_match(img, pred_bbox, obj)
 
-        # Update Kalman.
-        obj = update_params(obj, img, out_bbox, full_tpl)
-        bbox = create_out_bbox(obj, out_bbox)
+        # Update Kalman and get bbox.
+        obj, bbox = update_params(obj, img, out_bbox, full_tpl)
 
         draw_rectangle(img, bbox)
 
