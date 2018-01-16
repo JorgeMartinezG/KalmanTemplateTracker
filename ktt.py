@@ -162,8 +162,8 @@ def create_video_writer(cap, file_name, output_folder='output'):
     # create video file.
     video_path = os.path.join(output_folder, file_name)
     writer = cv2.VideoWriter(video_path, params.get('fourcc'),
-                             params.get('fps'),
-                             (params.get('height'), params.get('width')))
+                             25,
+                             (params.get('width'), params.get('height')))
 
     return writer
 
@@ -178,9 +178,12 @@ def main():
     folder = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(folder, 'Classifiers', 'haarcascade_frontalface_alt.xml')
     classifier = cv2.CascadeClassifier(path)
+    file_name = options.path.split('/')[-1]
+
+    if options.detections:
+        file_name = 'det_' + file_name
 
     if options.write:
-        file_name = options.path.split('/')[-1]
         writer = create_video_writer(cap, file_name)
 
     while cap.isOpened():
@@ -191,7 +194,8 @@ def main():
 
         # Waiting for detections.
         if len_objs == 0 and not track_sw:
-            cv2.imshow('Video', img); cv2.waitKey(25)
+            if not options.write:
+                cv2.imshow('Video', img); cv2.waitKey(25)
             continue
 
         # Initialize Kalman filter.
@@ -219,18 +223,30 @@ def main():
             out_bbox = run_template_match(img, pred_bbox, obj)
 
         # Update Kalman and get bbox.
-        obj, bbox = update_params(obj, img, out_bbox, full_tpl)
+        if not options.detections:
+            obj, bbox = update_params(obj, img, out_bbox, full_tpl)
 
-        draw_rectangle(img, bbox, 'green')
+            cv2.putText(img,
+                        '{0},{1}'.format(bbox[0], bbox[1]),
+                        (bbox[0] - 50, bbox[1]),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        (255,255,255),
+                        1)
+
+            draw_rectangle(img, bbox, 'green')
+
         if options.detections:
             [draw_rectangle(img, det, 'red') for det in objs]
 
-        cv2.imshow('video', img)
+        if not options.write:
+            cv2.imshow('video', img)
         if options.write:
             writer.write(img)
 
         if cv2.waitKey(25) & 0xFF == ord('q'):
             break
+    cap.release()
 
 
 def parse_options():
