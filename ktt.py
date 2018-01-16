@@ -147,6 +147,27 @@ def get_closest_obj(pred_bbox, objs):
     return objs[distances.index(min(distances))]
 
 
+def get_capture_params(cap):
+    return dict(width=int(cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)),
+                height=int(cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)),
+                fourcc=cv2.cv.CV_FOURCC('P', 'I', 'M', '1'),
+                fps=int(cap.get(cv2.cv.CV_CAP_PROP_FPS)))
+
+
+def create_video_writer(cap, file_name, output_folder='output'):
+    params = get_capture_params(cap)
+    if not os.path.isdir(output_folder):
+        os.mkdir(output_folder)
+
+    # create video file.
+    video_path = os.path.join(output_folder, file_name)
+    writer = cv2.VideoWriter(video_path, params.get('fourcc'),
+                             params.get('fps'),
+                             (params.get('height'), params.get('width')))
+
+    return writer
+
+
 def main():
     # Read input options.
     options = parse_options()
@@ -157,6 +178,10 @@ def main():
     folder = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(folder, 'Classifiers', 'haarcascade_frontalface_alt.xml')
     classifier = cv2.CascadeClassifier(path)
+
+    if options.write:
+        file_name = options.path.split('/')[-1]
+        writer = create_video_writer(cap, file_name)
 
     while cap.isOpened():
         # Retreive video frame from capture and status
@@ -201,6 +226,9 @@ def main():
             [draw_rectangle(img, det, 'red') for det in objs]
 
         cv2.imshow('video', img)
+        if options.write:
+            writer.write(img)
+
         if cv2.waitKey(25) & 0xFF == ord('q'):
             break
 
@@ -215,6 +243,12 @@ def parse_options():
                       dest='detections',
                       action='store_true',
                       default=False)
+    parser.add_option('-w',
+                      '--write',
+                      dest='write',
+                      action='store_true',
+                      default=False)
+
     options, _ = parser.parse_args()
 
     return options
